@@ -1,3 +1,4 @@
+#!/usr/bin/env perl
 
 #format the contigs;
 #perl format_scaffolds.pl <CONTIG-sequences> > <CONTIG-sequences>_format.fa
@@ -7,10 +8,10 @@
 use File::Path;
 use Text::Wrap;
 use FindBin qw($Bin);
-require "getopts.pl";
+use Getopt::Std;
 $Text::Wrap::columns = 61;
 
-my $version = "1-1";
+my $version = "v1.2";
 
 
 
@@ -28,51 +29,63 @@ my $min_tig_overlap = 10;
 
 # set the options from the command line
 use vars qw($opt_h $opt_t $opt_i $opt_c $opt_p $opt_a $opt_s $opt_b $opt_l $opt_x $opt_g $opt_r $opt_o $opt_k);
-&Getopts('h:t:i:c:p:a:s:b:l:x:g:r:o:i:k:');
+getopts('h:t:i:c:p:a:s:b:l:x:g:r:o:i:k:');
 
 #Help message including parameter
-my $helpmessage = "\nUsage SSPACE-LongRead scaffolder version $version\n\n";
-$helpmessage .= "perl SSPACE-LongRead.pl -c <contig-sequences> -p <pacbio-reads>\n";
+use constant USAGE =><<EOH;
 
-$helpmessage .= "\nGeneral options:\n";
-$helpmessage .= "-c  Fasta file containing contig sequences used for scaffolding (REQUIRED)\n";
-$helpmessage .= "-p  File containing PacBio CLR sequences to be used scaffolding (REQUIRED)\n";
-$helpmessage .= "-b  Output folder name where the results are stored (optional, default -b '$outputfolder')\n";
+Usage SSPACE-LongRead scaffolder version $version
 
-$helpmessage .= "\nAlignment options:\n";
-$helpmessage .= "-a  Minimum alignment length to allow a contig to be included for scaffolding (default -a $min_aln_length, optional)\n";
-$helpmessage .= "-i  Minimum identity of the alignment of the PacBio reads to the contig sequences. Alignment below this value will be filtered out (default -i $min_identity, optional)\n";
-$helpmessage .= "-t  The number of threads to run BLASR with\n";
-$helpmessage .= "-g  Minimmum gap between two contigs\n";
+    perl SSPACE-LongRead.pl -c <contig-sequences> -p <pacbio-reads>
 
-$helpmessage .= "\nScaffolding options:\n";
-$helpmessage .= "-l  Minimum number of links (PacBio reads) to allow contig-pairs for scaffolding (default -k $min_links, optional)\n";
-$helpmessage .= "-r  Maximum link ratio between two best contig pairs *higher values lead to least accurate scaffolding* (default -r $ratio, optional)\n";
-$helpmessage .= "-o  Minimum overlap length to merge two contigs (default -o $min_tig_overlap, optional)\n";
+General options:
 
-$helpmessage .= "\nOther options:\n";
-$helpmessage .= "-k  Store inner-scaffold sequences in a file. These are the long-read sequences spanning over a contig-link (default no output, set '-k 1' to store inner-scaffold sequences. If set, a folder is generated named 'inner-scaffold-sequences'\n";
-$helpmessage .= "-s  Skip the alignment step and use a previous alignment file. Note that the results of a previous run will be overwritten. Set '-s 1' to skip the alignment.\n";
-$helpmessage .= "-h  Prints this help message\n";
-die "$helpmessage\n" if($opt_h);
+  -c  Fasta file containing contig sequences used for scaffolding (REQUIRED)
+  -p  File containing PacBio CLR sequences to be used scaffolding (REQUIRED)
+  -b  Output folder name where the results are stored (optional, default -b '$outputfolder')
 
-die "$helpmessage\nERROR: Please insert a file with contig sequences. You've inserted '$opt_c' which either does not exist or is not filled in\n" if(!$opt_c || !(-e $opt_c));
-die "$helpmessage\nERROR: Please insert a file with PacBio sequences. You've inserted '$opt_p' which either does not exist or is not filled in\n" if(!$opt_p || !(-e $opt_p));
-$contigSequences = $opt_c if($opt_c);
-$pacbio_reads = $opt_p if($opt_p);
-$outputfolder = $opt_b if($opt_b);
-$min_links = $opt_l if($opt_l);
-$min_aln_length = $opt_a if($opt_a);
-$min_identity = $opt_i if($opt_i);
-$ratio = $opt_r if($opt_r);
-$skip_alignment = $opt_s if($opt_s);
-$threads = $opt_t if($opt_t);
-$min_gap = $opt_g if($opt_g);
-$min_tig_overlap = $opt_o if($opt_o);
+Alignment options:
+  -a  Minimum alignment length to allow a contig to be included for scaffolding (default -a $min_aln_length, optional)
+  -i  Minimum identity of the alignment of the PacBio reads to the contig sequences.
+      Alignment below this value will be filtered out (default -i $min_identity, optional)
+  -t  The number of threads to run BLASR with
+  -g  Minimmum gap between two contigs
+
+Scaffolding options:
+  -l  Minimum number of links (PacBio reads) to allow contig-pairs for scaffolding (default -k $min_links, optional)
+  -r  Maximum link ratio between two best contig pairs *higher values lead to least accurate scaffolding* (default -r $ratio, optional)
+  -o  Minimum overlap length to merge two contigs (default -o $min_tig_overlap, optional)
+
+Other options:
+  -k  Store inner-scaffold sequences in a file. These are the long-read sequences spanning over a contig-link
+      (default no output, set '-k 1' to store inner-scaffold sequences. If set, a folder is generated named 'inner-scaffold-sequences'
+  -s  Skip the alignment step and use a previous alignment file. Note that the results of a previous run will be overwritten. Set '-s 1' to skip the alignment.
+  -h  Prints this help message
+
+EOH
+
+die USAGE if($opt_h);
+
+die USAGE."ERROR: Please insert a file with contig sequences. You've inserted '$opt_c' which either does not exist or is not filled in\n" if(!$opt_c || !(-e $opt_c));
+die USAGE."ERROR: Please insert a file with PacBio sequences. You've inserted '$opt_p' which either does not exist or is not filled in\n" if(!$opt_p || !(-e $opt_p));
+
+
+
+$contigSequences = $opt_c if ($opt_c);
+$pacbio_reads = $opt_p if ($opt_p);
+$outputfolder = $opt_b if ($opt_b);
+$min_links = $opt_l if ($opt_l);
+$min_aln_length = $opt_a if ($opt_a);
+$min_identity = $opt_i if ($opt_i);
+$ratio = $opt_r if ($opt_r);
+$skip_alignment = $opt_s if ($opt_s);
+$threads = $opt_t if ($opt_t);
+$min_gap = $opt_g if ($opt_g);
+$min_tig_overlap = $opt_o if ($opt_o);
 
 #Align PacBio sequences to contigs/scaffolds
 if($skip_alignment == 1 && !(-e "$outputfolder/intermediate_files/BLASR_results.txt")){
-  die "$helpmessage\nERROR: You've set the option -s to 1, while the BLASR alignment could not be found in the folder '$outputfolder/intermediate_files/'. Exiting...\n";
+	die USAGE."ERROR: You've set the option -s to 1, while the BLASR alignment could not be found in the folder '$outputfolder/intermediate_files/'. Exiting...\n";
 }
 
 #Fill the log with the input settings
@@ -102,6 +115,8 @@ FormatSequences($contigSequences);
 if($skip_alignment != 1){
   print getDate().": Aligning PacBio reads to contigs...\n";
   system("$Bin/blasr $pacbio_reads $outputfolder/intermediate_files/contigs.fa -minMatch 5 -bestn 10 -noSplitSubreads -advanceExactMatches 1 -nCandidates 1 -maxAnchorsPerPosition 1 -sdpTupleSize 7 -nproc $threads -out $outputfolder/intermediate_files/BLASR_results.txt");
+#  ### blasr 5.x
+#  system("$Bin/blasr $pacbio_reads $outputfolder/intermediate_files/contigs.fa --minMatch 5 --bestn 10 --noSplitSubreads --advanceExactMatches 1 --nCandidates 1 --maxAnchorsPerPosition 1 --sdpTupleSize 7 --nproc $threads --out $outputfolder/intermediate_files/BLASR_results.txt");
 }
 #set global hashes
 my ($hash,$pair, $multihash,$prevread,$fullhash,$pacbioreadhash);
@@ -135,7 +150,7 @@ while(<BLASR>){
   my $end1 = $qend1+($tlength1-$tend1);
   $start1 = 0 if($qstart1 < 0);
   $end1 = $qlength1 if($end1 > $qlength1);
-  #if the previous read is the same read (or multiple previous reads) as the current read, check if the current contig-alignment is not overlapping with other contig-alignments (having a smaller score). 
+  #if the previous read is the same read (or multiple previous reads) as the current read, check if the current contig-alignment is not overlapping with other contig-alignments (having a smaller score).
   #If the current contig-alignment does overlap, do not include it for scaffolding
   if($read1 eq $prevread){
     foreach my $t (keys %$hash){
@@ -350,7 +365,7 @@ foreach my $tig (sort {$tig_length->{$b}<=>$tig_length->{$a}} keys %$tig_length)
             $path = $tig2;
           }
           print LOG "5) Found $path\n" if($path ne "" && $VERBOSE ==1);
-        }else{   
+        }else{
           if($count > 4 && $path eq ""){
             my @arraypath = split(",",$curpath);
             $multihash_sub = $multihash->{$arraypath[($#arraypath-4)]}{$arraypath[($#arraypath-3)]}{$arraypath[($#arraypath-2)]}{$arraypath[($#arraypath-1)]}{$arraypath[$#arraypath]};
@@ -455,7 +470,7 @@ foreach my $tig (sort {$tig_length->{$b}<=>$tig_length->{$a}} keys %$tig_length)
 
     }
 }
-close EVI;                      
+close EVI;
 
 #Try to combine the scaffolds in super-scaffolds based on a path search of each initial scaffold
 print getDate().": Finishing\n";
@@ -630,7 +645,7 @@ sub FormatSequences{
   while (<INFILE>) {
     chomp;
     $seq.=$_ if(eof(INFILE));
-    if ($_ =~ /^[>]/ || eof(INFILE)) { 
+    if ($_ =~ /^[>]/ || eof(INFILE)) {
       if($seq ne ""){
         $seq = uc($seq);
         my $len = length($seq);
@@ -731,7 +746,7 @@ sub SearchPath{
 #IF A NEGATIVE GAP IS FOUND, TRY TO FIND AN OVERLAP AND MERGE
 sub CreateScaffolds{
   my ($scafnum,$scaffoldpath,$circulair) = @_;
-  
+
   my @chain = split(",",$scaffoldpath);
   my ($previoustig,$currentscaffold,$tigline,$prevlinetig,$gapnum) = ("","","","",1);
     foreach my $contig(@chain){
@@ -1136,7 +1151,7 @@ sub reverseComplement{
    tr/ATGC/TACG/;
    return (reverse());
 }
-   
+
 ###FUNCTION TO GET THE CURRENT DATE
 sub getDate{
   my $date = scalar(localtime);
